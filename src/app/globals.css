@@ -32,32 +32,93 @@ a {
   text-decoration: none;
 }
 
+/* Custom scrollbar for leaderboard */
+.leaderboard-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #3b82f6 #f1f5f9;
+}
+
+.leaderboard-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.leaderboard-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.leaderboard-scroll::-webkit-scrollbar-thumb {
+  background: #3b82f6;
+  border-radius: 4px;
+}
+
+.leaderboard-scroll::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Focus styles for accessibility */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Animation for score submission */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.score-submission {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* Game canvas improvements */
+canvas {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .leaderboard-scroll {
+    max-height: 300px;
+  }
+  
+  canvas {
+    border-width: 1px;
+  }
+}
+
+/* Dark mode support */
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
   }
 }
 
-/* Custom scrollbar for leaderboard */
-.leaderboard-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e0 #f7fafc;
+/* Loading animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
-.leaderboard-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.leaderboard-scroll::-webkit-scrollbar-track {
-  background: #f7fafc;
-  border-radius: 3px;
-}
-
-.leaderboard-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
-  border-radius: 3px;
-}
-
-.leaderboard-scroll::-webkit-scrollbar-thumb:hover {
-  background: #a0aec0;
+.loading-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

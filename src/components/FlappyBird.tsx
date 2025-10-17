@@ -17,12 +17,14 @@ interface GameState {
 
 const FlappyBird: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const gameLoopRef = useRef<number>();
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [showNameInput, setShowNameInput] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
   // Game constants
   const GRAVITY = 0.5;
@@ -41,59 +43,83 @@ const FlappyBird: React.FC = () => {
     gameStarted: false,
   });
 
-  const drawBird = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+  // Responsive canvas sizing
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth;
+        const maxWidth = 800;
+        const width = Math.min(containerWidth - 32, maxWidth); // Account for padding
+        const height = (width * 600) / 800; // Maintain aspect ratio
+        setCanvasSize({ width, height });
+      }
+    };
+
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+    
+    return () => window.removeEventListener('resize', updateCanvasSize);
+  }, []);
+
+  const drawBird = (ctx: CanvasRenderingContext2D, x: number, y: number, scale: number) => {
+    const scaledBirdSize = BIRD_SIZE * scale;
+    
     ctx.fillStyle = '#f1c40f';
     ctx.beginPath();
-    ctx.arc(x, y, BIRD_SIZE / 2, 0, Math.PI * 2);
+    ctx.arc(x, y, scaledBirdSize / 2, 0, Math.PI * 2);
     ctx.fill();
     
     // Eye
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.arc(x + 8, y - 5, 4, 0, Math.PI * 2);
+    ctx.arc(x + 8 * scale, y - 5 * scale, 4 * scale, 0, Math.PI * 2);
     ctx.fill();
     
     // Beak
     ctx.fillStyle = '#e67e22';
     ctx.beginPath();
-    ctx.moveTo(x + 12, y);
-    ctx.lineTo(x + 25, y);
-    ctx.lineTo(x + 12, y + 8);
+    ctx.moveTo(x + 12 * scale, y);
+    ctx.lineTo(x + 25 * scale, y);
+    ctx.lineTo(x + 12 * scale, y + 8 * scale);
     ctx.fill();
   };
 
-  const drawPipe = (ctx: CanvasRenderingContext2D, x: number, gapY: number) => {
-    const pipeWidth = 60;
+  const drawPipe = (ctx: CanvasRenderingContext2D, x: number, gapY: number, scale: number) => {
+    const pipeWidth = 60 * scale;
+    const gapSize = PIPE_GAP * scale;
     
     // Top pipe
     ctx.fillStyle = '#27ae60';
-    ctx.fillRect(x, 0, pipeWidth, gapY - PIPE_GAP / 2);
+    ctx.fillRect(x, 0, pipeWidth, gapY - gapSize / 2);
     
     // Bottom pipe
-    ctx.fillRect(x, gapY + PIPE_GAP / 2, pipeWidth, 400);
+    ctx.fillRect(x, gapY + gapSize / 2, pipeWidth, canvasSize.height);
     
     // Pipe caps
     ctx.fillStyle = '#2ecc71';
-    ctx.fillRect(x - 5, gapY - PIPE_GAP / 2 - 20, pipeWidth + 10, 20);
-    ctx.fillRect(x - 5, gapY + PIPE_GAP / 2, pipeWidth + 10, 20);
+    ctx.fillRect(x - 5 * scale, gapY - gapSize / 2 - 20 * scale, pipeWidth + 10 * scale, 20 * scale);
+    ctx.fillRect(x - 5 * scale, gapY + gapSize / 2, pipeWidth + 10 * scale, 20 * scale);
   };
 
-  const checkCollision = (birdY: number, pipes: GameState['pipes']): boolean => {
+  const checkCollision = (birdY: number, pipes: GameState['pipes'], scale: number): boolean => {
+    const scaledBirdSize = BIRD_SIZE * scale;
+    const birdX = 100 * scale;
+
     // Ground collision
-    if (birdY + BIRD_SIZE / 2 >= 600 || birdY - BIRD_SIZE / 2 <= 0) {
+    if (birdY + scaledBirdSize / 2 >= canvasSize.height || birdY - scaledBirdSize / 2 <= 0) {
       return true;
     }
 
     // Pipe collision
     for (const pipe of pipes) {
-      const pipeX = pipe.x;
-      const gapTop = pipe.gapY - PIPE_GAP / 2;
-      const gapBottom = pipe.gapY + PIPE_GAP / 2;
+      const pipeX = pipe.x * scale;
+      const gapTop = pipe.gapY * scale - (PIPE_GAP * scale) / 2;
+      const gapBottom = pipe.gapY * scale + (PIPE_GAP * scale) / 2;
       
       if (
-        pipeX <= 100 + BIRD_SIZE / 2 &&
-        pipeX + 60 >= 100 - BIRD_SIZE / 2 &&
-        (birdY - BIRD_SIZE / 2 <= gapTop || birdY + BIRD_SIZE / 2 >= gapBottom)
+        pipeX <= birdX + scaledBirdSize / 2 &&
+        pipeX + 60 * scale >= birdX - scaledBirdSize / 2 &&
+        (birdY - scaledBirdSize / 2 <= gapTop || birdY + scaledBirdSize / 2 >= gapBottom)
       ) {
         return true;
       }
@@ -104,6 +130,7 @@ const FlappyBird: React.FC = () => {
 
   const updateGame = () => {
     const state = gameStateRef.current;
+    const scale = canvasSize.width / 800;
     
     if (!state.gameStarted || state.gameOver) return;
 
@@ -118,9 +145,9 @@ const FlappyBird: React.FC = () => {
     })).filter(pipe => pipe.x > -100);
 
     // Add new pipes
-    if (state.pipes.length === 0 || state.pipes[state.pipes.length - 1].x < 800 - PIPE_SPACING) {
+    if (state.pipes.length === 0 || state.pipes[state.pipes.length - 1].x < (canvasSize.width / scale) - PIPE_SPACING) {
       state.pipes.push({
-        x: 800,
+        x: canvasSize.width / scale,
         gapY: 150 + Math.random() * 200,
         passed: false,
       });
@@ -136,7 +163,7 @@ const FlappyBird: React.FC = () => {
     });
 
     // Check collision
-    if (checkCollision(state.birdY, state.pipes)) {
+    if (checkCollision(state.birdY, state.pipes, scale)) {
       state.gameOver = true;
       setGameOver(true);
       setShowNameInput(true);
@@ -150,55 +177,55 @@ const FlappyBird: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const scale = canvasSize.width / 800;
+
     // Clear canvas
     ctx.fillStyle = '#87CEEB';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw ground
     ctx.fillStyle = '#8B4513';
-    ctx.fillRect(0, 580, canvas.width, 20);
+    ctx.fillRect(0, canvas.height - 20 * scale, canvas.width, 20 * scale);
 
     const state = gameStateRef.current;
 
     // Draw pipes
     state.pipes.forEach(pipe => {
-      drawPipe(ctx, pipe.x, pipe.gapY);
+      drawPipe(ctx, pipe.x * scale, pipe.gapY * scale, scale);
     });
 
     // Draw bird
-    drawBird(ctx, 100, state.birdY);
+    drawBird(ctx, 100 * scale, state.birdY, scale);
 
     // Draw score
     ctx.fillStyle = '#fff';
-    ctx.font = '24px Arial';
-    ctx.fillText(`Score: ${state.score}`, 20, 30);
+    ctx.font = `${24 * scale}px Arial`;
+    ctx.fillText(`Score: ${state.score}`, 20 * scale, 30 * scale);
 
     // Draw game over or start message
     if (state.gameOver) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#fff';
-      ctx.font = '36px Arial';
-      ctx.fillText('Game Over!', 300, 250);
-      ctx.font = '24px Arial';
-      ctx.fillText(`Final Score: ${state.score}`, 300, 300);
-      ctx.fillText('Click to play again', 300, 350);
+      ctx.font = `${36 * scale}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 50 * scale);
+      ctx.font = `${24 * scale}px Arial`;
+      ctx.fillText(`Final Score: ${state.score}`, canvas.width / 2, canvas.height / 2);
+      ctx.fillText('Click to play again', canvas.width / 2, canvas.height / 2 + 50 * scale);
+      ctx.textAlign = 'left';
     } else if (!state.gameStarted) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#fff';
-      ctx.font = '36px Arial';
-      ctx.fillText('Flappy Bird', 300, 250);
-      ctx.font = '24px Arial';
-      ctx.fillText('Click to start', 300, 300);
-      ctx.fillText('Press SPACE or CLICK to flap', 250, 350);
+      ctx.font = `${36 * scale}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('Flappy Bird', canvas.width / 2, canvas.height / 2 - 50 * scale);
+      ctx.font = `${20 * scale}px Arial`;
+      ctx.fillText('Click to start', canvas.width / 2, canvas.height / 2);
+      ctx.fillText('Press SPACE or CLICK to flap', canvas.width / 2, canvas.height / 2 + 40 * scale);
+      ctx.textAlign = 'left';
     }
-  };
-
-  const gameLoop = () => {
-    updateGame();
-    drawGame();
-    gameLoopRef.current = requestAnimationFrame(gameLoop);
   };
 
   const jump = () => {
@@ -280,45 +307,57 @@ const FlappyBird: React.FC = () => {
       }
       window.removeEventListener('keydown', handleKeyPress);
     };
-  }, []);
+  }, [canvasSize]);
+
+  const gameLoop = () => {
+    updateGame();
+    drawGame();
+    gameLoopRef.current = requestAnimationFrame(gameLoop);
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <h1 className="text-4xl font-bold mb-4 text-blue-600">Flappy Bird Leaderboard</h1>
-      
-      <div className="relative">
+    <div ref={containerRef} className="flex flex-col items-center w-full">
+      <div className="relative w-full flex justify-center">
         <canvas
           ref={canvasRef}
-          width={800}
-          height={600}
+          width={canvasSize.width}
+          height={canvasSize.height}
           onClick={handleCanvasClick}
-          className="border-2 border-gray-300 rounded-lg shadow-lg cursor-pointer"
+          className="border-2 border-white/30 rounded-xl shadow-2xl cursor-pointer bg-sky-300"
+          style={{
+            maxWidth: '100%',
+            height: 'auto'
+          }}
         />
         
         {showNameInput && (
-          <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center rounded-lg">
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-              <h3 className="text-xl font-bold mb-4">Submit Your Score!</h3>
-              <p className="mb-2">Final Score: {score}</p>
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-xl">
+            <div className="bg-white p-6 rounded-xl shadow-2xl border border-gray-200 mx-4 max-w-sm w-full">
+              <h3 className="text-xl font-bold mb-4 text-center text-gray-800">Submit Your Score!</h3>
+              <div className="text-center mb-4">
+                <div className="text-3xl font-bold text-blue-600">{score}</div>
+                <div className="text-sm text-gray-600">points</div>
+              </div>
               <input
                 type="text"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="Enter your name"
-                className="border border-gray-300 p-2 rounded mb-4 w-full"
+                className="border border-gray-300 p-3 rounded-lg mb-4 w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 maxLength={20}
+                autoFocus
               />
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   onClick={submitScore}
                   disabled={!playerName.trim()}
-                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+                  className="flex-1 bg-blue-500 text-white px-4 py-3 rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition-colors font-medium"
                 >
                   Submit Score
                 </button>
                 <button
                   onClick={() => setShowNameInput(false)}
-                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                  className="flex-1 bg-gray-500 text-white px-4 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium"
                 >
                   Cancel
                 </button>
@@ -328,9 +367,9 @@ const FlappyBird: React.FC = () => {
         )}
       </div>
       
-      <div className="mt-4 text-center">
-        <p className="text-lg text-gray-700">Press SPACE or CLICK to make the bird flap</p>
-        <p className="text-sm text-gray-500 mt-2">Avoid the pipes and try to get the highest score!</p>
+      <div className="mt-4 text-center text-white">
+        <p className="text-sm md:text-base font-medium">Press <kbd className="px-2 py-1 bg-white/20 rounded text-sm font-mono">SPACE</kbd> or <strong>CLICK</strong> to make the bird flap</p>
+        <p className="text-xs md:text-sm text-blue-100 mt-1">Avoid the pipes and try to get the highest score!</p>
       </div>
     </div>
   );
