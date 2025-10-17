@@ -11,9 +11,31 @@ const LEADERBOARD_KEY = 'flappy-bird-leaderboard';
 // Helper function to get KV instance
 export async function getKV() {
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    // Production - use Vercel KV
-    const { kv } = await import('@vercel/kv');
-    return kv;
+    // Production - use Vercel KV REST API directly
+    return {
+      get: async (key: string) => {
+        const response = await fetch(`${process.env.KV_REST_API_URL}/get/${key}`, {
+          headers: {
+            Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.result;
+        }
+        return null;
+      },
+      set: async (key: string, value: any) => {
+        await fetch(`${process.env.KV_REST_API_URL}/set/${key}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.KV_REST_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(value),
+        });
+      },
+    };
   } else {
     // Development - use in-memory storage
     const memoryStorage = new Map();
@@ -27,7 +49,7 @@ export async function getKV() {
 export async function GET() {
   try {
     const kv = await getKV();
-    const leaderboard = await kv.get<LeaderboardEntry[]>(LEADERBOARD_KEY);
+    const leaderboard = await kv.get(LEADERBOARD_KEY);
     return NextResponse.json(leaderboard || []);
   } catch (error) {
     console.error('Error in GET /api/leaderboard:', error);
@@ -67,13 +89,13 @@ export async function POST(request: NextRequest) {
     };
 
     const kv = await getKV();
-    const leaderboard = await kv.get<LeaderboardEntry[]>(LEADERBOARD_KEY) || [];
+    const leaderboard = (await kv.get(LEADERBOARD_KEY)) || [];
     
     // Add new entry
     leaderboard.push(entry);
     
     // Sort by score (descending) and timestamp (ascending for same scores)
-    leaderboard.sort((a, b) => {
+    leaderboard.sort((a: LeaderboardEntry, b: LeaderboardEntry) => {
       if (b.score !== a.score) {
         return b.score - a.score;
       }
