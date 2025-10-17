@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export interface LeaderboardEntry {
+interface LeaderboardEntry {
   name: string;
   score: number;
   timestamp: number;
@@ -9,7 +9,7 @@ export interface LeaderboardEntry {
 const LEADERBOARD_KEY = 'flappy-bird-leaderboard';
 
 // Helper function to get KV instance
-export async function getKV() {
+async function getKV() {
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
     // Production - use Vercel KV REST API directly
     return {
