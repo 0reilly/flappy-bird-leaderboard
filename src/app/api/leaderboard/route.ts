@@ -1,10 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLeaderboard, addScoreToLeaderboard } from '@/lib/kv';
+
+export interface LeaderboardEntry {
+  name: string;
+  score: number;
+  timestamp: number;
+}
+
+const LEADERBOARD_KEY = 'flappy-bird-leaderboard';
+
+// Helper function to get KV instance
+export async function getKV() {
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    // Production - use Vercel KV
+    const { kv } = await import('@vercel/kv');
+    return kv;
+  } else {
+    // Development - use in-memory storage
+    const memoryStorage = new Map();
+    return {
+      get: async (key: string) => memoryStorage.get(key) || null,
+      set: async (key: string, value: any) => memoryStorage.set(key, value),
+    };
+  }
+}
 
 export async function GET() {
   try {
-    const leaderboard = await getLeaderboard();
-    return NextResponse.json(leaderboard);
+    const kv = await getKV();
+    const leaderboard = await kv.get<LeaderboardEntry[]>(LEADERBOARD_KEY);
+    return NextResponse.json(leaderboard || []);
   } catch (error) {
     console.error('Error in GET /api/leaderboard:', error);
     return NextResponse.json(
@@ -42,7 +66,25 @@ export async function POST(request: NextRequest) {
       timestamp: Date.now(),
     };
 
-    await addScoreToLeaderboard(entry);
+    const kv = await getKV();
+    const leaderboard = await kv.get<LeaderboardEntry[]>(LEADERBOARD_KEY) || [];
+    
+    // Add new entry
+    leaderboard.push(entry);
+    
+    // Sort by score (descending) and timestamp (ascending for same scores)
+    leaderboard.sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.timestamp - b.timestamp;
+    });
+    
+    // Keep only top 100 scores
+    const topScores = leaderboard.slice(0, 100);
+    
+    // Save back to KV
+    await kv.set(LEADERBOARD_KEY, topScores);
 
     return NextResponse.json({ success: true });
   } catch (error) {
